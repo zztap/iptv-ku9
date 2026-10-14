@@ -138,8 +138,33 @@ async function serveLogo(env, ctx, name) {
   return res;
 }
 
-function panel(request) {
+function esc(s) {
+  return String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+}
+
+async function metaRows(env) {
+  const repo = env.GITHUB_REPO || DEFAULT_REPO;
+  const got = await fetchFirst(mirrors(repo, "dist/meta.json"));
+  if (!got) return "<tr><td class='warn'>构建信息暂不可用（GitHub 未同步或网络异常）</td></tr>";
+  let m;
+  try {
+    m = JSON.parse(new TextDecoder().decode(got.body));
+  } catch (e) {
+    return "<tr><td class='warn'>meta.json 解析失败</td></tr>";
+  }
+  const rows = [
+    ["内容更新时间（北京时间）", m.generated_cst || "-"],
+    ["数据来源", (m.sources || []).map((s) => `${s.label}`).join(" + ")],
+    ...Object.entries(m.outputs || {}).map(([f, o]) => [f, `${o.entries} 条 · ${o.desc}`]),
+    ...(m.sources || []).map((s) => [s.label, `${s.entries} 条 · 取自 ${String(s.fetched_from || "").replace(/^https?:\/\//, "").slice(0, 48)}`]),
+  ];
+  return "<tr><th>项目</th><th>值</th></tr>" +
+    rows.map(([k, v]) => `<tr><td>${esc(k)}</td><td class="ok">${esc(v)}</td></tr>`).join("");
+}
+
+async function panel(request, env, ctx) {
   const origin = new URL(request.url).origin;
+  const rows = await metaRows(env);
   const links = [
     { path: "/merge.m3u", name: "合并版（推荐）", desc: "A 线 + B 线备用，同一个频道两条线路" },
     { path: "/ku9.m3u",   name: "酷九版",        desc: "plsy1/iptv 原版，含 7 天回看" },
@@ -194,7 +219,7 @@ function panel(request) {
 ${cards}
 <div class="card">
   <div class="head"><b>构建状态</b></div>
-  <table id="meta"><tr><td class="warn">加载中…</td></tr></table>
+  <table>${rows}</table>
 </div>
 <footer>
   单播为 RTP over UDP，需山东联通宽带（公网 IPv4 + PPPoE，账号后可加 @e 重拨）或 IPTV 专口。<br>
@@ -214,20 +239,6 @@ ${cards}
     const old = btn.textContent; btn.textContent = "已复制 ✓";
     setTimeout(() => (btn.textContent = old), 1500);
   });
-
-  fetch("/meta.json").then(r => r.json()).then(m => {
-    const rows = [
-      ["构建时间（北京时间）", m.generated_cst],
-      ["BASE_URL", m.base_url],
-      ...Object.entries(m.outputs).map(([f, o]) => [f, o.entries + " 条 · " + o.desc]),
-      ...m.sources.map(s => [s.label, s.entries + " 条 · 源 " + s.fetched_from.replace(/^https?:\\/\\//, "").slice(0, 60)]),
-    ];
-    document.getElementById("meta").innerHTML =
-      "<tr><th>项目</th><th>值</th></tr>" +
-      rows.map(([k, v]) => "<tr><td>" + k + "</td><td class='ok'>" + v + "</td></tr>").join("");
-  }).catch(() => {
-    document.getElementById("meta").innerHTML = "<tr><td class='warn'>meta.json 读取失败</td></tr>";
-  });
 </script>
 </body></html>`;
   return new Response(html, {
@@ -241,7 +252,7 @@ export default {
     const path = url.pathname;
 
     if (request.method === "OPTIONS") return new Response(null, { headers: CORS });
-    if (path === "/" || path === "/index.html") return panel(request);
+    if (path === "/" || path === "/index.html") return panel(request, env, ctx);
     if (path === "/health") return new Response("ok", { headers: CORS });
     if (FILES[path]) return serveFile(env, ctx, path);
     if (path === "/epg.xml.gz" || path === "/epg.xml") return serveEPG(env, ctx);
