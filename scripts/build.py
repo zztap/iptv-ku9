@@ -24,7 +24,9 @@ from datetime import datetime, timedelta, timezone
 
 BASE_URL = (os.environ.get("BASE_URL") or "").strip().rstrip("/")
 EPG_UPSTREAM = os.environ.get("EPG_URL") or "https://raw.githubusercontent.com/plsy1/epg/main/e/seven-days.xml.gz"
+PRIMARY = (os.environ.get("PRIMARY") or "sdu").strip().lower()   # 合并版的主线路来源: sdu | ku9
 FOOTER = os.environ.get("SOURCE_NOTE", "山东联通单播聚合（plsy1/iptv + sggc/SDU-IPTV-PRO）")
+PRIMARY_NOTE = ""
 UA = "Mozilla/5.0 (compatible; sd-iptv-builder/1.0; +https://github.com)"
 CST = timezone(timedelta(hours=8))
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -137,17 +139,20 @@ def rewrite_assets(info):
 
 
 # ---------------------------------------------------------------- 合并
+LINE_TAG = {"ku9": "酷九", "sdu": "SDU"}
+
+
 def mark_backup(entry, tag="备用"):
     info, name = split_display(entry["info"])
     group = attr(entry["info"], "group-title") or "其他"
-    info = re.sub(r'group-title="[^"]*"', 'group-title="%s·%s"' % (group, tag), info)
+    info = re.sub(r'group-title="[^"]*"', 'group-title="%s·备用"' % group, info)
     if 'group-title="' not in info:
-        info = info.rstrip() + ' group-title="%s·%s"' % (group, tag)
-    name = "%s(%s)" % (name, tag) if name else name
+        info = info.rstrip() + ' group-title="%s·备用"' % group
+    name = "%s[%s]" % (name, tag) if name else name
     return {"info": "%s,%s" % (info.rstrip(), name), "urls": entry["urls"]}
 
 
-def merge(a_entries, b_entries):
+def merge(a_entries, b_entries, tag="酷九"):
     idx_b = {}
     for e in b_entries:
         idx_b.setdefault(entry_key(e), []).append(e)
@@ -163,7 +168,7 @@ def merge(a_entries, b_entries):
         for e2 in idx_b.get(key, []):
             if set(e2["urls"]) & a_urls:
                 continue
-            out.append(mark_backup(e2))
+            out.append(mark_backup(e2, tag))
     for e in b_entries:  # B 独有频道
         key = entry_key(e)
         if key in idx_b and any(entry_key(x) == key for x in a_entries):
@@ -182,6 +187,8 @@ def render(entries, url_tvg, stamp):
     lines.append("# %s" % FOOTER)
     lines.append("# 内容更新于: %s (北京时间)  条目数: %d" % (stamp, len(entries)))
     lines.append("# 上游: plsy1/iptv · sggc/SDU-IPTV-PRO （本项目仅做聚合与转发）")
+    if PRIMARY_NOTE:
+        lines.append("# %s" % PRIMARY_NOTE)
     lines.append("# 单播为 RTP/RTSP over UDP，需山东联通宽带公网 IPv4 + PPPoE，或 IPTV 接口")
     lines.append("# ============================================================")
     for e in entries:
@@ -217,6 +224,12 @@ def main():
         })
         print("[ok] %-16s %3d 条  <- %s" % (src["id"], len(entries), used))
 
+    primary_id = "sdu" if PRIMARY == "sdu" else "ku9"
+    secondary_id = "ku9" if primary_id == "sdu" else "sdu"
+    global PRIMARY_NOTE
+    PRIMARY_NOTE = ("实测: 主线路 %s 可直接播放；备用线路 %s 若播放器报 401/打不开，"
+                    "多为平台鉴权限制，属正常" % (LINE_TAG[primary_id], LINE_TAG[secondary_id]))
+
     prev_meta = os.path.join(OUT, "meta.json")
     prev = {}
     if os.path.exists(prev_meta):
@@ -225,12 +238,15 @@ def main():
         except ValueError:
             prev = {}
 
-    # 上游内容没变就不重新生成：避免每 10 分钟一次的时间戳 commit 把仓库撑大
+    # 上游内容没变、且配置没变，就不重新生成：避免每 10 分钟一次的时间戳 commit 把仓库撑大
     prev_hash = {s.get("id"): s.get("sha256") for s in prev.get("sources", [])}
     now_hash = {s["id"]: s["sha256"] for s in meta_sources}
-    outputs_exist = all(os.path.exists(os.path.join(OUT, n)) for n, _, _ in [("ku9.m3u", 0, 0), ("sdu.m3u", 0, 0), ("merge.m3u", 0, 0)])
-    if prev_hash and prev_hash == now_hash and outputs_exist and os.environ.get("FORCE") != "1":
-        print("[skip] 上游内容未变化，产物保持不变（%s）" % ", ".join("%s:%s" % (k, v[:8]) for k, v in now_hash.items()))
+    now_cfg = {"base_url": BASE_URL, "epg_url": EPG_UPSTREAM, "primary": primary_id}
+    outputs_exist = all(os.path.exists(os.path.join(OUT, n)) for n in ("ku9.m3u", "sdu.m3u", "merge.m3u"))
+    if (prev_hash and prev_hash == now_hash and prev.get("config") == now_cfg
+            and outputs_exist and os.environ.get("FORCE") != "1"):
+        print("[skip] 上游内容与配置均未变化，产物保持不变（%s）"
+              % ", ".join("%s:%s" % (k, v[:8]) for k, v in now_hash.items()))
         return
 
     # 防回退：条目数骤降 >35% 直接报错，避免把坏数据推上去
@@ -239,11 +255,12 @@ def main():
         if old and s["entries"] < old * 0.65:
             raise SystemExit("!! %s 条目由 %d 降到 %d，中止" % (s["id"], old, s["entries"]))
 
-    merged = merge(parsed["ku9"], parsed["sdu"])
+    merged = merge(parsed[primary_id], parsed[secondary_id], LINE_TAG[secondary_id])
     outputs = [
         ("ku9.m3u", parsed["ku9"], "plsy1/iptv 原版（酷九）"),
         ("sdu.m3u", parsed["sdu"], "SDU-IPTV-PRO 原版"),
-        ("merge.m3u", merged, "合并版：A 线 + B 线备用"),
+        ("merge.m3u", merged, "合并版：主线路 %s + 备用 %s"
+         % (LINE_TAG[primary_id], LINE_TAG[secondary_id])),
     ]
     meta_out = {}
     for name, entries, desc in outputs:
@@ -257,6 +274,8 @@ def main():
         "generated_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "generated_cst": stamp,
         "base_url": BASE_URL or "(未设置，logo/EPG 仍指向上游)",
+        "primary": primary_id,
+        "config": now_cfg,
         "sources": meta_sources,
         "outputs": meta_out,
     }

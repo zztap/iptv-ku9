@@ -33,6 +33,8 @@ jobs:
           # 设置后 logo / EPG 都会走你的域名，不再依赖 jsdelivr / gh-proxy
           BASE_URL: ${{ vars.BASE_URL }}
           EPG_URL: ${{ vars.EPG_URL }}
+          # sdu | ku9 —— 合并版把哪个上游当主线路（另一个作为同频道备用线路）
+          PRIMARY: ${{ vars.PRIMARY }}
         run: python scripts/build.py
 
       - name: 提交变化

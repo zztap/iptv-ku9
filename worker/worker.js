@@ -53,15 +53,19 @@ function withCORS(res) {
   return r;
 }
 
-async function fetchFirst(urls) {
+async function fetchFirst(urls, ms = 8000) {
   for (const u of urls) {
     try {
-      const r = await fetch(u, { headers: { "user-agent": UA }, redirect: "follow" });
+      const r = await fetch(u, {
+        headers: { "user-agent": UA },
+        redirect: "follow",
+        signal: AbortSignal.timeout(ms),
+      });
       if (!r.ok) continue;
       const body = await r.arrayBuffer();
       if (body.byteLength < 64) continue;
       return { body, from: u };
-    } catch (e) { /* 试下一个 */ }
+    } catch (e) { /* 超时/失败都换下一个镜像 */ }
   }
   return null;
 }
@@ -101,7 +105,7 @@ async function serveEPG(env, ctx) {
   const key = new Request("https://cache.internal/epg.xml.gz");
   const hit = await cache.match(key);
   if (hit) return withCORS(hit);
-  const got = await fetchFirst([EPG_UPSTREAM, `https://gh-proxy.com/${EPG_UPSTREAM}`, `https://gh-proxy.org/${EPG_UPSTREAM}`]);
+  const got = await fetchFirst([EPG_UPSTREAM, `https://gh-proxy.com/${EPG_UPSTREAM}`, `https://gh-proxy.org/${EPG_UPSTREAM}`], 20000);
   if (!got) return new Response("EPG 暂不可用\n", { status: 502, headers: CORS });
   const res = new Response(got.body, {
     headers: {
@@ -129,7 +133,7 @@ async function serveLogo(env, ctx, name) {
     `https://gh-proxy.org/https://raw.githubusercontent.com/sggc/SDU-IPTV-PRO/main/logo/${encodeURIComponent(name)}`,
     `https://raw.githubusercontent.com/sggc/SDU-IPTV-PRO/main/logo/${encodeURIComponent(name)}`,
   ];
-  const got = await fetchFirst(candidates);
+  const got = await fetchFirst(candidates, 6000);
   if (!got) return new Response("", { status: 404, headers: CORS });
   const res = new Response(got.body, {
     headers: { ...CORS, "cache-control": "public, max-age=604800" },
