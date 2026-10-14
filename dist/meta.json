@@ -1,22 +1,22 @@
 {
   "base_url": "(未设置，logo/EPG 仍指向上游)",
-  "generated_cst": "2026-10-14 19:07:04",
-  "generated_utc": "2026-10-14T11:07:07Z",
+  "generated_cst": "2026-10-14 19:08:42",
+  "generated_utc": "2026-10-14T11:08:42Z",
   "outputs": {
     "ku9.m3u": {
       "desc": "plsy1/iptv 原版（酷九）",
       "entries": 151,
-      "sha256": "554fa4ae936f1afd78eb3ce9f874b0c28a0a2e5c12b8cfe853d3e2a718a53cda"
+      "sha256": "8686c3b191673c44651a92cac6d0a4480581343ee6b3d9cfe3d7fb77b3885215"
     },
     "merge.m3u": {
       "desc": "合并版：A 线 + B 线备用",
       "entries": 275,
-      "sha256": "7b53ec67b81f03127b99bba4df3acd7c968ae7d72ba81063a5e444896d36b59e"
+      "sha256": "46685f7bfa4dc5855a033b422ff406fe852ef66afba9be3f4d71ed9d2f1992df"
     },
     "sdu.m3u": {
       "desc": "SDU-IPTV-PRO 原版",
       "entries": 122,
-      "sha256": "e9d5fbc1fb9fcd479ee12a71259aa0cb7f014c0df1f11eab5b49a86c241c5807"
+      "sha256": "09dbb1be04982a6f4ae31f336ac07b7b260552f7da2ef29a87f7c08c9d9b3f1d"
     }
   },
   "sources": [
