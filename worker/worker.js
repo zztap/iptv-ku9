@@ -216,7 +216,8 @@ async function panel(request, env, ctx) {
   td,th{border-bottom:1px solid #22262f;padding:8px 6px;text-align:left}
   th{color:#8b93a7;font-weight:500}
   .ok{color:#7ee0a8}.warn{color:#ffcf6b}
-  footer{color:#6a7286;font-size:12px;margin-top:22px;line-height:1.8}
+  footer{color:#6a7286;font-size:12px;margin-top:22px;line-height:1.9}
+  footer code{display:inline;background:none;border:0;padding:0;color:#7ee0a8;font-size:12px}
 </style></head><body>
 <h1>山东联通单播 IPTV</h1>
 <p class="sub">自动同步 plsy1/iptv 与 sggc/SDU-IPTV-PRO · 上游一变，这里的地址内容自动跟着变</p>
@@ -226,7 +227,12 @@ ${cards}
   <table>${rows}</table>
 </div>
 <footer>
-  单播为 RTP over UDP，需山东联通宽带（公网 IPv4 + PPPoE，账号后可加 @e 重拨）或 IPTV 专口。<br>
+  <b>怎么用</b><br>
+  ① 本机跑中转：<code>python tools/relay.py</code> → 播放器订阅 <code>http://本机IP:8899/list.m3u</code><br>
+  ② 这里的 m3u 只是播放列表。视频流是山东联通内网的 RTP over UDP，
+     Cloudflare 到不了你的内网、也不能代理流，所以播流必须靠本机中转（自动打洞解决 NAT 回程）。<br>
+  ③ plsy1 那批 <code>112.245.125.x</code> / <code>222.132.188.x</code> 在多数宽线上 SETUP 直接 401（平台鉴权），
+     能播的是 SDU 那批 <code>60.212.114.x</code>；列表里另一批已标为「·备用」。<br>
   本项目仅做播放列表聚合与转发，不存储、不产生任何音视频内容，请勿用于商业用途。
 </footer>
 <script>
