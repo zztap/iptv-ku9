@@ -180,7 +180,7 @@ def render(entries, url_tvg, stamp):
     lines = ['#EXTM3U url-tvg="%s"' % url_tvg]
     lines.append("# ============================================================")
     lines.append("# %s" % FOOTER)
-    lines.append("# 构建时间: %s (北京时间)  条目数: %d" % (stamp, len(entries)))
+    lines.append("# 内容更新于: %s (北京时间)  条目数: %d" % (stamp, len(entries)))
     lines.append("# 上游: plsy1/iptv · sggc/SDU-IPTV-PRO （本项目仅做聚合与转发）")
     lines.append("# 单播为 RTP/RTSP over UDP，需山东联通宽带公网 IPv4 + PPPoE，或 IPTV 接口")
     lines.append("# ============================================================")
@@ -217,17 +217,27 @@ def main():
         })
         print("[ok] %-16s %3d 条  <- %s" % (src["id"], len(entries), used))
 
-    # 防回退：条目数骤降 >35% 直接报错，避免把坏数据推上去
     prev_meta = os.path.join(OUT, "meta.json")
+    prev = {}
     if os.path.exists(prev_meta):
         try:
             prev = json.load(open(prev_meta, encoding="utf-8"))
-            for s in meta_sources:
-                old = next((x["entries"] for x in prev.get("sources", []) if x["id"] == s["id"]), None)
-                if old and s["entries"] < old * 0.65:
-                    raise SystemExit("!! %s 条目由 %d 降到 %d，中止" % (s["id"], old, s["entries"]))
-        except (ValueError, KeyError):
-            pass
+        except ValueError:
+            prev = {}
+
+    # 上游内容没变就不重新生成：避免每 10 分钟一次的时间戳 commit 把仓库撑大
+    prev_hash = {s.get("id"): s.get("sha256") for s in prev.get("sources", [])}
+    now_hash = {s["id"]: s["sha256"] for s in meta_sources}
+    outputs_exist = all(os.path.exists(os.path.join(OUT, n)) for n, _, _ in [("ku9.m3u", 0, 0), ("sdu.m3u", 0, 0), ("merge.m3u", 0, 0)])
+    if prev_hash and prev_hash == now_hash and outputs_exist and os.environ.get("FORCE") != "1":
+        print("[skip] 上游内容未变化，产物保持不变（%s）" % ", ".join("%s:%s" % (k, v[:8]) for k, v in now_hash.items()))
+        return
+
+    # 防回退：条目数骤降 >35% 直接报错，避免把坏数据推上去
+    for s in meta_sources:
+        old = next((x["entries"] for x in prev.get("sources", []) if x["id"] == s["id"]), None)
+        if old and s["entries"] < old * 0.65:
+            raise SystemExit("!! %s 条目由 %d 降到 %d，中止" % (s["id"], old, s["entries"]))
 
     merged = merge(parsed["ku9"], parsed["sdu"])
     outputs = [

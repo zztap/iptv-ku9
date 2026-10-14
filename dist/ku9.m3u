@@ -1,7 +1,7 @@
 #EXTM3U url-tvg="https://raw.githubusercontent.com/plsy1/epg/main/e/seven-days.xml.gz"
 # ============================================================
 # 山东联通单播聚合（plsy1/iptv + sggc/SDU-IPTV-PRO）
-# 构建时间: 2026-10-14 19:08:42 (北京时间)  条目数: 151
+# 内容更新于: 2026-10-14 19:09:57 (北京时间)  条目数: 151
 # 上游: plsy1/iptv · sggc/SDU-IPTV-PRO （本项目仅做聚合与转发）
 # 单播为 RTP/RTSP over UDP，需山东联通宽带公网 IPv4 + PPPoE，或 IPTV 接口
 # ============================================================
