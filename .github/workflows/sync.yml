@@ -1,0 +1,48 @@
+name: sync-upstream
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"   # 每 10 分钟检查一次上游，有变化才提交
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "scripts/**"
+      - ".github/workflows/**"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-upstream
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 聚合上游播放列表
+        env:
+          # 仓库变量 BASE_URL 填你自己的域名，例如 https://iptv.example.com
+          # 设置后 logo / EPG 都会走你的域名，不再依赖 jsdelivr / gh-proxy
+          BASE_URL: ${{ vars.BASE_URL }}
+          EPG_URL: ${{ vars.EPG_URL }}
+        run: python scripts/build.py
+
+      - name: 提交变化
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add dist
+          if git diff --cached --quiet; then
+            echo "上游无变化，跳过提交"
+          else
+            git commit -m "sync $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            git push
+          fi

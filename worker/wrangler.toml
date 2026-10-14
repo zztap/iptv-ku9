@@ -1,0 +1,10 @@
+name = "sd-iptv"
+main = "worker.js"
+compatibility_date = "2025-01-01"
+
+# 换成你的仓库（owner/repo）
+[vars]
+GITHUB_REPO = "zztap/iptv-ku9"
+
+# 部署后建议在 Dashboard → Settings → Domains & Routes
+# 绑定自定义域名，例如 iptv.你的域名.com（workers.dev 在国内常被污染）
