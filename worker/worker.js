@@ -78,7 +78,6 @@ async function serveFile(env, ctx, path) {
   const urls = mirrors(repo, spec.file).concat(UPSTREAM_FALLBACK[path] || []);
   const got = await fetchFirst(urls);
   if (!got) {
-    const stale = await cache.match(key, { ignoreMethod: false });
     return new Response("上游暂不可用，请稍后重试\n", {
       status: 502,
       headers: { ...CORS, "content-type": "text/plain; charset=utf-8" },
