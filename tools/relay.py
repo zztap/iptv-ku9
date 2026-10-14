@@ -302,6 +302,17 @@ class Handler(BaseHTTPRequestHandler):
             self.log_message("会话结束，收到 RTP %d 包", pull.pkts)
 
 
+class Server(ThreadingHTTPServer):
+    daemon_threads = True
+
+    def handle_error(self, request, client_address):
+        """播放器断开连接属正常，不要打整屏 traceback"""
+        exc = sys.exc_info()[1]
+        if isinstance(exc, (ConnectionResetError, ConnectionAbortedError, BrokenPipeError)):
+            return
+        ThreadingHTTPServer.handle_error(self, request, client_address)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--list", default=DEFAULT_LIST, help="播放列表来源（URL 或本地文件）")
@@ -309,8 +320,7 @@ def main():
     ap.add_argument("--bind", default="0.0.0.0")
     a = ap.parse_args()
     Handler.list_src = a.list
-    srv = ThreadingHTTPServer((a.bind, a.port), Handler)
-    srv.daemon_threads = True
+    srv = Server((a.bind, a.port), Handler)
     print("[relay] listening on http://%s:%d/  list=%s" % (a.bind, a.port, a.list))
     print("[relay] 播放器订阅:  http://<本机IP>:%d/list.m3u" % a.port)
     try:
